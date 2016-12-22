@@ -1,0 +1,283 @@
+= java-mavenmixin-docker
+:_imagesdir: ./
+:toc:
+
+
+This module, for use within link:http://isis.apache.org[Apache Isis] applications, provides a link:https://github.com/odavid/maven-plugins[maven mixin] that can be used to package up a webapp as a Docker image using the `package` phase, and then to upload  that Docker image to a repository (eg docker hub) using the `deploy` phase.
+It also disables the regular `maven-deploy-plugin` (so that the `<distributionManagement>` section is not required).
+
+The appropriate configuration is included in a `<profile>` which is automatically included in all builds.
+This profile can be disabled using a Maven property.
+
+
+
+== How to Configure
+
+To configure:
+
+* copy and paste the following into either the `pom.xml` of the consuming module or (better still) the `pom.xml` of the top-level parent of the consuming module: +
++
+[source,xml]
+----
+<properties>
+    ...
+    <mavenmixin-docker.version>0.0.1</mavenmixin-docker.version>
+    <maven-deploy-plugin.version>2.8.1</maven-deploy-plugin.version>
+    <docker-maven-plugin.version>0.4.13</docker-maven-plugin.version>
+    ...
+</properties>
+----
++
+and: +
++
+[source,xml]
+----
+<build>
+    <pluginManagement>
+        <plugins>
+            ...
+            <plugin>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>${maven-deploy-plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>${docker-maven-plugin.version}</version>
+            </plugin>
+            ...
+        </plugins>
+    </pluginManagement>
+</build>
+----
+
+* update the following property/ies in the `pom.xml` of the consuming webapp module (with `<packaging>war</packaging>`): +
++
+[source,xml]
+----
+<properties>
+    ...
+    <docker-plugin.from>incodehq/tomcat</docker-plugin.from>                                            <!--1-->
+    <docker-plugin.imageName>XXX/${project.parent.artifactId}</docker-plugin.imageName>                 <!--2-->
+    <docker-plugin.resource.include>${project.parent.artifactId}.war</docker-plugin.resource.include>   <!--3-->
+    <docker-plugin.maintainer>(not provided)</docker-plugin.maintainer>                                 <!--4-->
+    <docker-plugin.serverId>docker-hub</docker-plugin.serverId>                                         <!--5-->
+    <docker-plugin.registryUrl>https://index.docker.io/v1/</docker-plugin.registryUrl>                  <!--6-->
+    ...
+</properties>
+----
+<1> the base image upon which this will new image will be based
+<2> the name of the image to be created.
+If uploading to docker hub then 'XXX' will be the account name on docker hub.
+<3> the WAR file to include.
+If using the link:https://github.com/danhaywood/java-mavenmixin-jettywar[jettywar] mavenmixin then this could also be set to `${maven-war-plugin.warName}.war` 
+<4> The maintainer, to be added in the `Dockerfile`
+<5> Optionally, the `serverId` to upload to.
+This key is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
+If not specified then docker-hub is assumed.
+<6> Optionally, the corresponding URL to upload to.
+Note that the URL is *not* looked up from `~/.m2/settings.xml`.
+
+* add the following to the `pom.xml` of the consuming module: +
++
+[source,xml]
+----
+<build>
+    <plugins>
+        <plugin>
+            <groupId>com.github.odavid.maven.plugins</groupId>
+            <artifactId>mixin-maven-plugin</artifactId>
+            <version>0.1-alpha-39</version>
+            <extensions>true</extensions>
+            <configuration>
+                <mixins>
+                    <mixin>
+                        <groupId>com.danhaywood.mavenmixin</groupId>
+                        <artifactId>docker</artifactId>
+                        <version>${mavenmixin-docker.version}</version>
+                    </mixin>
+                </mixins>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+----
+
+* if necessary, specify `src/main/resources` as a resource directory, with filtering (ie substitution of parameters) enabled:
+
++
+[source,xml]
+----
+<build>
+    <resources>
+        <resource>
+            <filtering>true</filtering>
+            <directory>src/main/resources</directory>
+        </resource>
+        ...
+    </resources>
+    ...
+</build>
+----
+
+* create a `Dockerfile` in `src/main/resources/docker`. +
++
+For example: +
++
+[source,xml]
+----
+FROM ${docker-plugin.from}
+MAINTAINER ${docker-plugin.maintainer}
+RUN rm -rf ${DEPLOYMENT_DIR}/ROOT
+COPY ${docker-plugin.resource.include} ${DEPLOYMENT_DIR}/ROOT.war
+EXPOSE 8080
+----
++
+Note that `${docker-plugin.from}`, `${docker-plugin.maintainer}` and `${docker-plugin.resource.include}` will be substituted from the properties defined in the `pom.xml`.
+It would also be okay to simply hard-code the `${docker-plugin.from}` and `${docker-plugin.maintainer}` values in the `Dockerfile`, and not define them as properties.
+However the `${docker-plugin.resource.include}` property *is* required because this is also referenced by the configuration of docker-maven-plugin defined within this mixin.
+
+* (if deploying to a docker registry), add the following to `~/.m2/settings.xml`:
++
+[source,xml]
+----
+<servers>
+    <server>
+      <id>docker-hub</id>                               <!--1-->
+      <username>danhaywood</username>                   <!--2-->
+      <password>XXXXXXXX</password>                     
+      <configuration>
+        <email>dan@haywood-associates.co.uk</email>
+      </configuration>
+    </server>
+    ...
+</servers>
+----
+<1> corresponds to the value of the `${docker-plugin.serverId}` property defined above
+<2> username and password for the account defined for the repository (whose registry URL is defined by the ${docker-plugin.registryUrl} property)
+
+
+To disable the (profile contributed by this) mixin, pass the following system property to `mvn`:
+
+[source,bash]
+----
+mvn -Dskip.mavenmixin-docker
+----
+
+
+== How to use
+
+To package the image file:
+
+[source,bash]
+----
+mvn package
+----
+
+To tag the image locally:
+
+[source,bash]
+----
+mvn install
+----
+
+To upload the image to the docker registry:
+
+[source,bash]
+----
+mvn deploy
+----
+
+
+
+
+== Known issues
+
+None currently
+
+
+
+== Change Log
+
+* `0.0.1` - first release
+
+
+
+
+== Legal Stuff
+
+=== License
+
+[source]
+----
+Copyright 2016~date Dan Haywood
+
+Licensed under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+----
+
+
+
+=== Dependencies
+
+This mixin module relies on the link:https://github.com/odavid/maven-plugins[com.github.odavid.maven.plugins:mixin-maven-plugin], released under Apache License v2.0.
+
+
+
+== Maven deploy notes
+
+The module is deployed using Sonatype's OSS support (see
+http://central.sonatype.org/pages/apache-maven.html[user guide] and http://www.danhaywood.com/2013/07/11/deploying-artifacts-to-maven-central-repo/[this blog post]).
+
+The `release.sh` script automates the release process.
+It performs the following:
+
+* performs a sanity check (`mvn clean install -o`) that everything builds ok
+* bumps the `pom.xml` to a specified release version, and tag
+* performs a double check (`mvn clean install -o`) that everything still builds ok
+* releases the code using `mvn clean deploy`
+* bumps the `pom.xml` to a specified release version
+
+For example:
+
+[source]
+----
+sh release.sh 0.0.1 \
+              0.0.2-SNAPSHOT \
+              dan@haywood-associates.co.uk \
+              "this is not really my passphrase"
+----
+
+where
+
+* `$1` is the release version
+* `$2` is the snapshot version
+* `$3` is the email of the secret key (`~/.gnupg/secring.gpg`) to use for signing
+* `$4` is the corresponding passphrase for that secret key.
+
+Other ways of specifying the key and passphrase are available, see the ``pgp-maven-plugin``'s
+http://kohsuke.org/pgp-maven-plugin/secretkey.html[documentation]).
+
+If the script completes successfully, then push changes:
+
+[source]
+----
+git push origin master
+git push origin 0.0.1
+----
+
+If the script fails to complete, then identify the cause, perform a `git reset --hard` to start over and fix the issue before trying again.
+Note that in the `dom`'s `pom.xml` the `nexus-staging-maven-plugin` has the `autoReleaseAfterClose` setting set to `true` (to automatically stage, close and the release the repo).
+You may want to set this to `false` if debugging an issue.
+
+According to Sonatype's guide, it takes about 10 minutes to sync, but up to 2 hours to update http://search.maven.org[search].
