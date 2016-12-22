@@ -57,25 +57,23 @@ and: +
 ----
 <properties>
     ...
-    <docker-plugin.from>incodehq/tomcat</docker-plugin.from>                                            <!--1-->
-    <docker-plugin.imageName>XXX/${project.parent.artifactId}</docker-plugin.imageName>                 <!--2-->
-    <docker-plugin.resource.include>${project.parent.artifactId}.war</docker-plugin.resource.include>   <!--3-->
-    <docker-plugin.maintainer>(not provided)</docker-plugin.maintainer>                                 <!--4-->
-    <docker-plugin.serverId>docker-hub</docker-plugin.serverId>                                         <!--5-->
-    <docker-plugin.registryUrl>https://index.docker.io/v1/</docker-plugin.registryUrl>                  <!--6-->
+    <docker-plugin.imageName>XXX/${project.parent.artifactId}</docker-plugin.imageName>                 <!--1-->
+    <docker-plugin.resource.include>${project.parent.artifactId}.war</docker-plugin.resource.include>   <!--2-->
+    <docker-plugin.serverId>docker-hub</docker-plugin.serverId>                                         <!--3-->
+    <docker-plugin.registryUrl>https://index.docker.io/v1/</docker-plugin.registryUrl>                  <!--4-->
     ...
 </properties>
 ----
-<1> the base image upon which this will new image will be based
-<2> the name of the image to be created.
+<1> the name of the image to be created.
 If uploading to docker hub then 'XXX' will be the account name on docker hub.
-<3> the WAR file to include.
+<2> The maintainer, also used within the `Dockerfile`, below.
+<3> the WAR file to include within the image.
+The idea is that the `Dockerfile` (below) copies this war file into the appropriate directory of the image.
 If using the link:https://github.com/danhaywood/java-mavenmixin-jettywar[jettywar] mavenmixin then this could also be set to `${maven-war-plugin.warName}.war` 
-<4> The maintainer, to be added in the `Dockerfile`
-<5> Optionally, the `serverId` to upload to.
+<4> Optionally, the `serverId` to upload to.
 This key is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
 If not specified then docker-hub is assumed.
-<6> Optionally, the corresponding URL to upload to.
+<5> Optionally, the corresponding URL to upload to.
 Note that the URL is *not* looked up from `~/.m2/settings.xml`.
 
 * add the following to the `pom.xml` of the consuming module: +
@@ -126,16 +124,15 @@ For example: +
 +
 [source,xml]
 ----
-FROM ${docker-plugin.from}
-MAINTAINER ${docker-plugin.maintainer}
+FROM incodehq/tomcat
 RUN rm -rf ${DEPLOYMENT_DIR}/ROOT
 COPY ${docker-plugin.resource.include} ${DEPLOYMENT_DIR}/ROOT.war
 EXPOSE 8080
 ----
 +
-Note that `${docker-plugin.from}`, `${docker-plugin.maintainer}` and `${docker-plugin.resource.include}` will be substituted from the properties defined in the `pom.xml`.
-It would also be okay to simply hard-code the `${docker-plugin.from}` and `${docker-plugin.maintainer}` values in the `Dockerfile`, and not define them as properties.
-However the `${docker-plugin.resource.include}` property *is* required because this is also referenced by the configuration of docker-maven-plugin defined within this mixin.
+The link:https://hub.docker.com/r/incodehq/tomcat/~/dockerfile/[`incodehq/tomcat`] base image exposes the ${DEPLOYMENT_DIR} environment variable as the directory to deploy war files to.
+The `${docker-plugin.resource.include}` will be substituted with the property defined in the `pom.xml`.
+You can of course add any other tags, see link:https://docs.docker.com/engine/reference/builder/#/label[Dockerfile] reference for details.
 
 * (if deploying to a docker registry), add the following to `~/.m2/settings.xml`:
 +
@@ -165,6 +162,7 @@ mvn -Dskip.mavenmixin-docker
 ----
 
 
+
 == How to use
 
 To package the image file:
@@ -188,6 +186,15 @@ To upload the image to the docker registry:
 mvn deploy
 ----
 
+
+To run the image:
+
+[source,bash]
+----
+docker run -d -p80:8080 XXX/imageName
+----
+
+where `XXX/imageName` is the value of `{docker-plugin.imageName}.
 
 
 
