@@ -66,17 +66,16 @@ and: +
 ----
 <1> the name of the image to be created.
 If uploading to docker hub then 'XXX' will be the account name on docker hub.
-<2> The maintainer, also used within the `Dockerfile`, below.
-<3> the WAR file to include within the image.
+<2> the WAR file to include within the image.
 The idea is that the `Dockerfile` (below) copies this war file into the appropriate directory of the image.
 If using the link:https://github.com/danhaywood/java-mavenmixin-jettywar[jettywar] mavenmixin then this could also be set to `${maven-war-plugin.warName}.war` 
-<4> Optionally, the `serverId` to upload to.
+<3> Optionally, the `serverId` to upload to.
 This key is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
 If not specified then docker-hub is assumed.
-<5> Optionally, the corresponding URL to upload to.
+<4> Optionally, the corresponding URL to upload to.
 Note that the URL is *not* looked up from `~/.m2/settings.xml`.
 
-* add the following to the `pom.xml` of the consuming module: +
+* add the following to the `pom.xml` of the consuming webapp module: +
 +
 [source,xml]
 ----
@@ -130,7 +129,7 @@ COPY ${docker-plugin.resource.include} ${DEPLOYMENT_DIR}/ROOT.war
 EXPOSE 8080
 ----
 +
-The link:https://hub.docker.com/r/incodehq/tomcat/~/dockerfile/[`incodehq/tomcat`] base image exposes the ${DEPLOYMENT_DIR} environment variable as the directory to deploy war files to.
+The link:https://hub.docker.com/r/incodehq/tomcat/~/dockerfile/[`incodehq/tomcat`] base image exposes the `${DEPLOYMENT_DIR}` environment variable as the directory to deploy war files to.
 The `${docker-plugin.resource.include}` will be substituted with the property defined in the `pom.xml`.
 You can of course add any other tags, see link:https://docs.docker.com/engine/reference/builder/#/label[Dockerfile] reference for details.
 
@@ -151,15 +150,9 @@ You can of course add any other tags, see link:https://docs.docker.com/engine/re
 </servers>
 ----
 <1> corresponds to the value of the `${docker-plugin.serverId}` property defined above
-<2> username and password for the account defined for the repository (whose registry URL is defined by the ${docker-plugin.registryUrl} property)
+<2> username and password for the account defined for the repository (whose registry URL is defined by the `${docker-plugin.registryUrl}` property)
 
 
-To disable the (profile contributed by this) mixin, pass the following system property to `mvn`:
-
-[source,bash]
-----
-mvn -Dskip.mavenmixin-docker
-----
 
 
 
@@ -186,6 +179,16 @@ To upload the image to the docker registry:
 mvn deploy
 ----
 
+Or, to disable the (profile contributed by this) mixin, pass the following system property to `mvn`:
+
+[source,bash]
+----
+mvn -Dskip.mavenmixin-docker
+----
+
+The underlying link:https://github.com/spotify/docker-maven-plugin#bind-docker-commands-to-maven-phases[docker-maven-plugin] also allows goals to be disabled using `-DskipDocker` and similar variants.
+
+
 
 == How to consume
 
@@ -193,15 +196,14 @@ To run the image:
 
 [source,bash]
 ----
-docker run -d -p80:8080 XXX/imageName
+docker run -d -p80:8080 XXX/imageName       
 ----
 
-where `XXX/imageName` is the value of `{docker-plugin.imageName}.
-
+where `XXX/imageName` is the value of `${docker-plugin.imageName}` property specified in the consuming `pom.xml`.
 It should then be possible to access the application from link:http://localhost[http://localhost].
 
 
-As a slightly more complex example, run two docker images, one with postgres and the other with the application:
+As a slightly more complex example, we can run two docker images, one with postgres backend database and the other running the application itself:
 
 [source,bash]
 ----
@@ -223,7 +225,7 @@ docker run --name imageName --link postgres:db -e ISIS_OPTS=$ISIS_OPTS -p 80:808
 
 Again, the application can be accessed from link:http://localhost[http://localhost].
 
-
+NOTE: this requires that the postgres JDBC driver is part of the application being built.
 
 == Known issues
 
