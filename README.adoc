@@ -187,6 +187,8 @@ mvn deploy
 ----
 
 
+== How to consume
+
 To run the image:
 
 [source,bash]
@@ -195,6 +197,31 @@ docker run -d -p80:8080 XXX/imageName
 ----
 
 where `XXX/imageName` is the value of `{docker-plugin.imageName}.
+
+It should then be possible to access the application from link:http://localhost[http://localhost].
+
+
+As a slightly more complex example, run two docker images, one with postgres and the other with the application:
+
+[source,bash]
+----
+docker run --name postgres -d incodehq/postgres
+----
+
+and then:
+
+[source,bash]
+----
+ISIS_OPTS=""
+ISIS_OPTS=$ISIS_OPTS+"isis.persistor.datanucleus.impl.javax.jdo.option.ConnectionDriverName=org.postgresql.Driver"
+ISIS_OPTS=$ISIS_OPTS+"||isis.persistor.datanucleus.impl.javax.jdo.option.ConnectionURL=jdbc:postgresql://db:5432/incodehq"
+ISIS_OPTS=$ISIS_OPTS+"||isis.persistor.datanucleus.impl.javax.jdo.option.ConnectionUserName=incodehq"
+ISIS_OPTS=$ISIS_OPTS+"||isis.persistor.datanucleus.impl.javax.jdo.option.ConnectionPassword=incodehq"
+
+docker run --name imageName --link postgres:db -e ISIS_OPTS=$ISIS_OPTS -p 80:8080 -d XXX/imageName
+----
+
+Again, the application can be accessed from link:http://localhost[http://localhost].
 
 
 
