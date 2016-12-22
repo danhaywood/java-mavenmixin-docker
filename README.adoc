@@ -6,8 +6,7 @@
 This module, for use within link:http://isis.apache.org[Apache Isis] applications, provides a link:https://github.com/odavid/maven-plugins[maven mixin] that can be used to package up a webapp as a Docker image using the `package` phase, and then to upload  that Docker image to a repository (eg docker hub) using the `deploy` phase.
 It also disables the regular `maven-deploy-plugin` (so that the `<distributionManagement>` section is not required).
 
-The appropriate configuration is included in a `<profile>` which is automatically included in all builds.
-This profile can be disabled using a Maven property.
+The appropriate configuration is included in a `<profile>`, but which is disabled by default; it can be enabled using a Maven property.
 
 
 
@@ -21,7 +20,7 @@ To configure:
 ----
 <properties>
     ...
-    <mavenmixin-docker.version>0.0.1</mavenmixin-docker.version>
+    <mavenmixin-docker.version>0.0.2</mavenmixin-docker.version>
     <maven-deploy-plugin.version>2.8.1</maven-deploy-plugin.version>
     <docker-maven-plugin.version>0.4.13</docker-maven-plugin.version>
     ...
@@ -130,8 +129,8 @@ EXPOSE 8080
 ----
 +
 The link:https://hub.docker.com/r/incodehq/tomcat/~/dockerfile/[`incodehq/tomcat`] base image exposes the `${DEPLOYMENT_DIR}` environment variable as the directory to deploy war files to.
-The `${docker-plugin.resource.include}` will be substituted with the property defined in the `pom.xml`.
-You can of course add any other tags, see link:https://docs.docker.com/engine/reference/builder/#/label[Dockerfile] reference for details.
+The `${docker-plugin.resource.include}` property will be substituted with the value defined in the `pom.xml`.
+You can of course add other configuration into the `Dockerfile`, see the link:https://docs.docker.com/engine/reference/builder/#/label[Dockerfile] reference for details.
 
 * (if deploying to a docker registry), add the following to `~/.m2/settings.xml`:
 +
@@ -162,28 +161,30 @@ To package the image file:
 
 [source,bash]
 ----
-mvn package
+mvn package -Dmavenmixin-docker
 ----
 
-To tag the image locally:
-
-[source,bash]
-----
-mvn install
-----
-
-To upload the image to the docker registry:
+To also tag the image locally:
 
 [source,bash]
 ----
-mvn deploy
+mvn install -Dmavenmixin-docker
 ----
 
-Or, to disable the (profile contributed by this) mixin, pass the following system property to `mvn`:
+To also upload the image to the docker registry:
 
 [source,bash]
 ----
-mvn -Dskip.mavenmixin-docker
+mvn deploy -Dmavenmixin-docker
+----
+
+The above assumes that the `${docker-plugin.imageName}` property has been specified in the consuming `pom.xml`.
+If necessary, though, that property can also be specified using a property, eg:
+
+[source,bash]
+----
+mvn deploy -Dmavenmixin-docker \
+           -Ddocker-plugin.imageName=danhaywood/simpleapp
 ----
 
 The underlying link:https://github.com/spotify/docker-maven-plugin#bind-docker-commands-to-maven-phases[docker-maven-plugin] also allows goals to be disabled using `-DskipDocker` and similar variants.
@@ -235,6 +236,7 @@ None currently
 
 == Change Log
 
+* `0.0.2` - changed profile so is disabled by default
 * `0.0.1` - first release
 
 
@@ -288,8 +290,8 @@ For example:
 
 [source]
 ----
-sh release.sh 0.0.1 \
-              0.0.2-SNAPSHOT \
+sh release.sh 0.0.2 \
+              0.0.3-SNAPSHOT \
               dan@haywood-associates.co.uk \
               "this is not really my passphrase"
 ----
@@ -308,8 +310,7 @@ If the script completes successfully, then push changes:
 
 [source]
 ----
-git push origin master
-git push origin 0.0.1
+git push origin master && git push origin 0.0.2
 ----
 
 If the script fails to complete, then identify the cause, perform a `git reset --hard` to start over and fix the issue before trying again.

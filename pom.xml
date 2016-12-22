@@ -42,7 +42,7 @@
             <id>mavenmixin-docker</id>
             <activation>
                 <property>
-                    <name>!skip.mavenmixin-docker</name>
+                    <name>mavenmixin-docker</name>
                 </property>
             </activation>
 
