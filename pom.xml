@@ -39,7 +39,7 @@
 
     <profiles>
         <profile>
-            <id>mavenmixin-docker</id>
+            <id>mavenmixin-docker-install</id>
             <activation>
                 <property>
                     <name>mavenmixin-docker</name>
@@ -49,15 +49,61 @@
             <properties>
                 <maven-deploy-plugin.version>2.8.1</maven-deploy-plugin.version>
                 <docker-maven-plugin.version>0.4.13</docker-maven-plugin.version>
+                <gmavenplus-plugin.version>1.5</gmavenplus-plugin.version>
+                <groovy-all.version>2.4.7</groovy-all.version>
 
                 <docker-plugin.imageName>XXX/${project.parent.artifactId}</docker-plugin.imageName>
                 <docker-plugin.resource.include>${project.parent.artifactId}.war</docker-plugin.resource.include>
-                <docker-plugin.serverId>docker-hub</docker-plugin.serverId>
-                <docker-plugin.registryUrl>https://index.docker.io/v1/</docker-plugin.registryUrl>
+                <docker-plugin.releaseServerId>docker-hub</docker-plugin.releaseServerId>
+                <docker-plugin.releaseRegistryUrl>https://index.docker.io/v1/</docker-plugin.releaseRegistryUrl>
+                <docker-plugin.snapshotServerId>docker-hub</docker-plugin.snapshotServerId>
+                <docker-plugin.snapshotRegistryUrl>https://index.docker.io/v1/</docker-plugin.snapshotRegistryUrl>
             </properties>
 
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.gmavenplus</groupId>
+                        <artifactId>gmavenplus-plugin</artifactId>
+                        <version>${gmavenplus-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>infer-serverId-and-registryUrl</id>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <phase>initialize</phase>
+                                <configuration>
+                                    <scripts>
+                                        <script><![CDATA[//
+                                        project.properties['docker-plugin.serverId'] = project.version.endsWith('-SNAPSHOT') 
+                                            ? project.properties['docker-plugin.snapshotServerId']
+                                            : project.properties['docker-plugin.releaseServerId']
+                                        project.properties['docker-plugin.registryUrl'] = project.version.endsWith('-SNAPSHOT') 
+                                            ? project.properties['docker-plugin.snapshotRegistryUrl']
+                                            : project.properties['docker-plugin.releaseRegistryUrl']
+                                        project.properties['_docker-plugin.deployType'] = project.version.endsWith('-SNAPSHOT') 
+                                            ? 'snapshot'
+                                            : 'release'
+                                        println ""
+                                        println "deployType               : " + project.properties['_docker-plugin.deployType']
+                                        println "docker-plugin.serverId   : " + project.properties['docker-plugin.serverId']
+                                        println "docker-plugin.registryUrl: " + project.properties['docker-plugin.registryUrl']
+                                        println ""
+                                        ]]></script>
+                                    </scripts>
+                                </configuration>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                        <dependency>
+                            <groupId>org.codehaus.groovy</groupId>
+                            <artifactId>groovy-all</artifactId>
+                            <version>${groovy-all.version}</version>
+                            <scope>runtime</scope>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-deploy-plugin</artifactId>
@@ -73,7 +119,7 @@
                         <executions>
                             <execution>
                                 <id>build-image</id>
-                                <phase>package</phase>
+                                <phase>install</phase>
                                 <goals>
                                     <goal>build</goal>
                                 </goals>
@@ -89,8 +135,26 @@
                                     <newName>${docker-plugin.imageName}:${project.version}</newName>
                                 </configuration>
                             </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>${docker-plugin.imageName}</imageName>
+                            <dockerDirectory>${build.outputDirectory}/docker</dockerDirectory>
+                            <resources>
+                                <resource>
+                                    <targetPath>.</targetPath>
+                                    <directory>${project.build.directory}</directory>
+                                    <include>${docker-plugin.resource.include}</include>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.spotify</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <version>${docker-maven-plugin.version}</version>
+                        <executions>
                             <execution>
-                                <id>push-image</id>
+                                <id>push-image-tagged</id>
                                 <phase>deploy</phase>
                                 <goals>
                                     <goal>push</goal>
@@ -112,21 +176,14 @@
                         </executions>
                         <configuration>
                             <imageName>${docker-plugin.imageName}</imageName>
-                            <dockerDirectory>${build.outputDirectory}/docker</dockerDirectory>
-                            <resources>
-                                <resource>
-                                    <targetPath>.</targetPath>
-                                    <directory>${project.build.directory}</directory>
-                                    <include>${docker-plugin.resource.include}</include>
-                                </resource>
-                            </resources>
                             <serverId>${docker-plugin.serverId}</serverId>
                             <registryUrl>${docker-plugin.registryUrl}</registryUrl>
                         </configuration>
                     </plugin>
-            </plugins>
+                </plugins>
             </build>
         </profile>
+
         <profile>
             <id>danhaywood-mavenmixin-sonatyperelease</id>
             <!-- 
@@ -171,6 +228,8 @@
                 </snapshotRepository>
             </distributionManagement>
         </profile>
+
+
     </profiles>
 
 

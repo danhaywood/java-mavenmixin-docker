@@ -23,6 +23,7 @@ To configure:
     <mavenmixin-docker.version>0.0.2</mavenmixin-docker.version>
     <maven-deploy-plugin.version>2.8.1</maven-deploy-plugin.version>
     <docker-maven-plugin.version>0.4.13</docker-maven-plugin.version>
+    <gmavenplus-plugin.version>1.5</gmavenplus-plugin.version>
     ...
 </properties>
 ----
@@ -44,6 +45,11 @@ and: +
                 <artifactId>docker-maven-plugin</artifactId>
                 <version>${docker-maven-plugin.version}</version>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.gmavenplus</groupId>
+                <artifactId>gmavenplus-plugin</artifactId>
+                <version>${gmavenplus-plugin.version}</version>
+            </plugin>
             ...
         </plugins>
     </pluginManagement>
@@ -56,23 +62,40 @@ and: +
 ----
 <properties>
     ...
-    <docker-plugin.imageName>XXX/${project.parent.artifactId}</docker-plugin.imageName>                 <!--1-->
-    <docker-plugin.resource.include>${project.parent.artifactId}.war</docker-plugin.resource.include>   <!--2-->
-    <docker-plugin.serverId>docker-hub</docker-plugin.serverId>                                         <!--3-->
-    <docker-plugin.registryUrl>https://index.docker.io/v1/</docker-plugin.registryUrl>                  <!--4-->
+    <docker-plugin.imageName>               <!--1-->
+        XXX/${project.parent.artifactId}
+    </docker-plugin.imageName>                 
+    <docker-plugin.resource.include>        <!--2-->
+        ${project.parent.artifactId}.war
+    </docker-plugin.resource.include>
+    <docker-plugin.releaseServerId>         <!--3-->
+        docker-hub
+    </docker-plugin.releaseServerId>                           
+    <docker-plugin.releaseRegistryUrl>      <!--4-->
+        https://index.docker.io/v1/
+    </docker-plugin.releaseRegistryUrl>    
+    <docker-plugin.snapshotServerId>        <!--5-->
+        docker-hub
+    </docker-plugin.snapshotServerId>                   
+    <docker-plugin.snapshotRegistryUrl>     <!--6-->
+        https://index.docker.io/v1/
+    </docker-plugin.snapshotRegistryUrl> 
     ...
 </properties>
 ----
 <1> the name of the image to be created.
-If uploading to docker hub then 'XXX' will be the account name on docker hub.
+Change 'XXX' as required; for example if deploying to docker hub then 'XXX' will be the account name on docker hub.
 <2> the WAR file to include within the image.
 The idea is that the `Dockerfile` (below) copies this war file into the appropriate directory of the image.
 If using the link:https://github.com/danhaywood/java-mavenmixin-jettywar[jettywar] mavenmixin then this could also be set to `${maven-war-plugin.warName}.war` 
-<3> Optionally, the `serverId` to upload to.
+<3> Optionally, the server to upload release images to (ie when the `project.version` is not a `-SNAPSHOT`)
 This key is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
-If not specified then docker-hub is assumed.
-<4> Optionally, the corresponding URL to upload to.
+If not specified then "docker-hub" is assumed.
+<4> Optionally, the corresponding URL to upload release images to.
 Note that the URL is *not* looked up from `~/.m2/settings.xml`.
+<5> Optionally, the server Id to upload snapshot images to (ie when the `project.version` _is_ a `-SNAPSHOT`)
+If not specified then "docker-hub" is assumed.
+<6> Optionally, the corresponding URL to upload snapshot images to.
 
 * add the following to the `pom.xml` of the consuming webapp module: +
 +
@@ -142,7 +165,7 @@ You can of course add other configuration into the `Dockerfile`, see the link:ht
       <username>danhaywood</username>                   <!--2-->
       <password>XXXXXXXX</password>                     
       <configuration>
-        <email>dan@haywood-associates.co.uk</email>
+        <email>dan@haywood-associates.co.uk</email>     <!--3-->
       </configuration>
     </server>
     ...
@@ -150,6 +173,7 @@ You can of course add other configuration into the `Dockerfile`, see the link:ht
 ----
 <1> corresponds to the value of the `${docker-plugin.serverId}` property defined above
 <2> username and password for the account defined for the repository (whose registry URL is defined by the `${docker-plugin.registryUrl}` property)
+<3> corresponding email address, as described in the link:https://github.com/spotify/docker-maven-plugin#authenticating-with-private-registries[spotify docker plugin] README.
 
 
 
@@ -157,29 +181,33 @@ You can of course add other configuration into the `Dockerfile`, see the link:ht
 
 == How to use
 
-To package the image file:
-
-[source,bash]
-----
-mvn package -Dmavenmixin-docker
-----
-
-To also tag the image locally:
+To create the image file:
 
 [source,bash]
 ----
 mvn install -Dmavenmixin-docker
 ----
 
-To also upload the image to the docker registry:
+This will create an image and tagged it as both `latest` and using the consuming ``pom.xml``'s `project.version`.
+The two tagged images will be visible using `docker images`.
+
+To also upload (push) the image to the docker registry:
 
 [source,bash]
 ----
 mvn deploy -Dmavenmixin-docker
 ----
 
+Where the image is uploaded to depends on the `project.version` of the consuming `pom.xml`:
+
+* if the `project.version` is a `-SNAPSHOT`, then `docker-plugin.snapshotServerId` and `docker-plugin.snapshotRegistryUrl` properties will be used.
+
+* if the `project.version` is _not_ a `-SNAPSHOT`, then `docker-plugin.releaseServerId` and `docker-plugin.releaseRegistryUrl` properties will be used.
+
+This allows unstable snapshot images to be pushed to a different registry than the stable release images.
+
 The above assumes that the `${docker-plugin.imageName}` property has been specified in the consuming `pom.xml`.
-If necessary, though, that property can also be specified using a property, eg:
+If necessary, though, that property can also be specified from the command line, eg:
 
 [source,bash]
 ----
@@ -236,6 +264,8 @@ None currently
 
 == Change Log
 
+* `0.0.3` - bind `build` goal to `install` phase rather than `package` phase.
+Provide the capability to deploy snapshot images and release images to different registries.
 * `0.0.2` - changed profile so is disabled by default
 * `0.0.1` - first release
 
@@ -290,8 +320,8 @@ For example:
 
 [source]
 ----
-sh release.sh 0.0.2 \
-              0.0.3-SNAPSHOT \
+sh release.sh 0.0.3 \
+              0.0.4-SNAPSHOT \
               dan@haywood-associates.co.uk \
               "this is not really my passphrase"
 ----
@@ -310,7 +340,7 @@ If the script completes successfully, then push changes:
 
 [source]
 ----
-git push origin master && git push origin 0.0.2
+git push origin master && git push origin 0.0.3
 ----
 
 If the script fails to complete, then identify the cause, perform a `git reset --hard` to start over and fix the issue before trying again.
