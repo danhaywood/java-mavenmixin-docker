@@ -195,8 +195,10 @@ To also upload (push) the image to the docker registry:
 
 [source,bash]
 ----
-mvn deploy -Dmavenmixin-docker
+mvn -pl webapp deploy -Dmavenmixin-docker
 ----
+
+The `-pl webapp` runs the deploy in the `webapp` module (where the WAR file is built).
 
 Where the image is uploaded to depends on the `project.version` of the consuming `pom.xml`:
 
