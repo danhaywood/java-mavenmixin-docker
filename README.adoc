@@ -323,8 +323,8 @@ For example:
 
 [source]
 ----
-sh release.sh 0.0.3 \
-              0.0.4-SNAPSHOT \
+sh release.sh 0.0.4 \
+              0.0.5-SNAPSHOT \
               dan@haywood-associates.co.uk \
               "this is not really my passphrase"
 ----
