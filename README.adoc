@@ -20,10 +20,9 @@ To configure:
 ----
 <properties>
     ...
-    <mavenmixin-docker.version>0.0.3</mavenmixin-docker.version>
+    <mavenmixin-docker.version>0.0.4</mavenmixin-docker.version>
     <maven-deploy-plugin.version>2.8.1</maven-deploy-plugin.version>
-    <docker-maven-plugin.version>0.4.13</docker-maven-plugin.version>
-    <gmavenplus-plugin.version>1.5</gmavenplus-plugin.version>
+    <docker-maven-plugin.version>1.0.0</docker-maven-plugin.version>
     ...
 </properties>
 ----
@@ -45,11 +44,6 @@ and: +
                 <artifactId>docker-maven-plugin</artifactId>
                 <version>${docker-maven-plugin.version}</version>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.gmavenplus</groupId>
-                <artifactId>gmavenplus-plugin</artifactId>
-                <version>${gmavenplus-plugin.version}</version>
-            </plugin>
             ...
         </plugins>
     </pluginManagement>
@@ -65,37 +59,33 @@ and: +
     <docker-plugin.imageName>               <!--1-->
         XXX/${project.parent.artifactId}
     </docker-plugin.imageName>                 
-    <docker-plugin.resource.include>        <!--2-->
+    <docker-plugin.imageTag>                <!--2-->
+        ${project.version}
+    </docker-plugin.imageName>
+    <docker-plugin.resource.include>        <!--3-->
         ${project.parent.artifactId}.war
     </docker-plugin.resource.include>
-    <docker-plugin.releaseServerId>         <!--3-->
+    <docker-plugin.serverId>                <!--4-->
         docker-hub
-    </docker-plugin.releaseServerId>                           
-    <docker-plugin.releaseRegistryUrl>      <!--4-->
+    </docker-plugin.serverId>
+    <docker-plugin.registryUrl>             <!--5-->
         https://index.docker.io/v1/
-    </docker-plugin.releaseRegistryUrl>    
-    <docker-plugin.snapshotServerId>        <!--5-->
-        docker-hub
-    </docker-plugin.snapshotServerId>                   
-    <docker-plugin.snapshotRegistryUrl>     <!--6-->
-        https://index.docker.io/v1/
-    </docker-plugin.snapshotRegistryUrl> 
+    </docker-plugin.registryUrl>
     ...
 </properties>
 ----
 <1> the name of the image to be created.
-Change 'XXX' as required; for example if deploying to docker hub then 'XXX' will be the account name on docker hub.
-<2> the WAR file to include within the image.
+Change "XXX" as required; for example if deploying to docker hub then "XXX" will be the account name on docker hub.
+<2> the tag of the image to be created, often `${project.version}` but could be specified externally from a CI pipeline/job.
+<3> the WAR file to include within the image.
 The idea is that the `Dockerfile` (below) copies this war file into the appropriate directory of the image.
 If using the link:https://github.com/danhaywood/java-mavenmixin-jettywar[jettywar] mavenmixin then this could also be set to `${maven-war-plugin.warName}.war` 
-<3> Optionally, the server to upload release images to (ie when the `project.version` is not a `-SNAPSHOT`)
-This key is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
+<4> The id of the server to upload images to.
+This id is used to look up username/password credentials from `~/.m2/settings.xml`; see below for further details on this.
 If not specified then "docker-hub" is assumed.
-<4> Optionally, the corresponding URL to upload release images to.
+<5> The corresponding URL to upload images to.
 Note that the URL is *not* looked up from `~/.m2/settings.xml`.
-<5> Optionally, the server Id to upload snapshot images to (ie when the `project.version` _is_ a `-SNAPSHOT`)
-If not specified then "docker-hub" is assumed.
-<6> Optionally, the corresponding URL to upload snapshot images to.
+If not specified then "https://index.docker.io/v1/" is assumed.
 
 * add the following to the `pom.xml` of the consuming webapp module: +
 +
@@ -267,6 +257,15 @@ None currently
 
 
 == Change Log
+
+* `0.0.4` - Various improvements:
+
+** Introduces `docker-plugin.imageTag` property to allow the image tag to be specified externally.
+** Removes distinction between release and snapshot repositories (external CI job can simply override)
+*** `docker-plugin.snapshotServerId` and `docker-plugin.releaseServerId` replaced with `docker-plugin.serverId`
+*** `docker-plugin.snapshotRegistryUrl` and `docker-plugin.releaseRegistryUrl` replaced with `docker-plugin.serverId`
+** Updated to `1.0.0` of `spotify:docker-maven-plugin`
+* if the `project.version` is _not_ a `-SNAPSHOT`, then `docker-plugin.releaseServerId` and `docker-plugin.releaseRegistryUrl` properties will be used.
 
 * `0.0.3` - bind `build` goal to `install` phase rather than `package` phase.
 Provide the capability to deploy snapshot images and release images to different registries.
